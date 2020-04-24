@@ -1,5 +1,6 @@
 package com.codahale.metrics.json;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.codahale.metrics.health.HealthCheck;
 import org.junit.Test;
@@ -137,5 +138,66 @@ public class HealthCheckModuleTest {
                 "}," +
                 "\"timestamp\":\"" + result.getTimestamp() + "\"" +
                 "}");
+    }
+
+    @Test
+    public void serializesResultWithNestedDetails() throws Exception {
+        Map<String, Object> complex = new LinkedHashMap<>();
+        complex.put("field", "value");
+
+        HealthCheck.Result result = HealthCheck.Result.builder()
+                .healthy()
+                .withNestedDetail("boolean", true)
+                .withNestedDetail("integer", 1)
+                .withNestedDetail("long", 2L)
+                .withNestedDetail("float", 3.546F)
+                .withNestedDetail("double", 4.567D)
+                .withNestedDetail("BigInteger", new BigInteger("12345"))
+                .withNestedDetail("BigDecimal", new BigDecimal("12345.56789"))
+                .withNestedDetail("String", "string")
+                .withNestedDetail("complex", complex)
+                .build();
+
+        assertThat(mapper.writeValueAsString(result))
+                .isEqualTo("{" +
+                        "\"healthy\":true," +
+                        "\"duration\":0," +
+                        "\"details\":{" +
+                        "\"boolean\":true," +
+                        "\"integer\":1," +
+                        "\"long\":2," +
+                        "\"float\":3.546," +
+                        "\"double\":4.567," +
+                        "\"BigInteger\":12345," +
+                        "\"BigDecimal\":12345.56789," +
+                        "\"String\":\"string\"," +
+                        "\"complex\":{" +
+                        "\"field\":\"value\"" +
+                        "}}," +
+                        "\"timestamp\":\"" + result.getTimestamp() + "\"" +
+                        "}");
+    }
+
+    @Test
+    public void serializesResultWithCustomNestedDetailsName() throws Exception {
+        HealthCheck.Result result = HealthCheck.Result.builder()
+                .healthy()
+                .withNestedDetailsName("extraDetails")
+                .withNestedDetail("nested_detail_1", "nested_value_1")
+                .withNestedDetail("nested_detail_2", "nested_value_2")
+                .withNestedDetail("nested_detail_3", "nested_value_3")
+                .build();
+
+        assertThat(mapper.writeValueAsString(result))
+                .isEqualTo("{" +
+                        "\"healthy\":true," +
+                        "\"duration\":0," +
+                        "\"extraDetails\":{" +
+                        "\"nested_detail_1\":\"nested_value_1\"," +
+                        "\"nested_detail_2\":\"nested_value_2\"," +
+                        "\"nested_detail_3\":\"nested_value_3\"" +
+                        "}," +
+                        "\"timestamp\":\"" + result.getTimestamp() + "\"" +
+                        "}");
     }
 }

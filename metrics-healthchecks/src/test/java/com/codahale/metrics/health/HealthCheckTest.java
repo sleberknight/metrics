@@ -7,6 +7,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -152,6 +153,9 @@ public class HealthCheckTest {
 
         assertThat(result.getDetails())
                 .containsEntry("detail", "value");
+
+        assertThat(result.getNestedDetails())
+                .isEmpty();
     }
 
     @Test
@@ -172,6 +176,9 @@ public class HealthCheckTest {
 
         assertThat(result.getDetails())
                 .containsEntry("detail", "value");
+
+        assertThat(result.getNestedDetails())
+                .isEmpty();
     }
 
     @Test
@@ -196,6 +203,114 @@ public class HealthCheckTest {
 
         assertThat(result.getDetails())
                 .containsEntry("detail", "value");
+
+        assertThat(result.getNestedDetails())
+                .isEmpty();
+    }
+
+    @Test
+    public void canHaveHealthyBuilderWithNestedDetails() {
+        final HealthCheck.Result result = HealthCheck.Result.builder()
+                .healthy()
+                .withNestedDetail("nested_detail_1", "nested_value_1")
+                .withNestedDetail("nested_detail_2", "nested_value_2")
+                .build();
+
+        assertThat(result.isHealthy())
+                .isTrue();
+
+        assertThat(result.getMessage())
+                .isNull();
+
+        assertThat(result.getError())
+                .isNull();
+
+        assertThat(result.getDetails())
+                .isEmpty();
+
+        assertThat(result.getNestedDetails())
+                .containsOnly(
+                        entry("nested_detail_1", "nested_value_1"),
+                        entry("nested_detail_2", "nested_value_2")
+                );
+    }
+
+    @Test
+    public void canHaveUnHealthyBuilderWithNestedDetails() {
+        final HealthCheck.Result result = HealthCheck.Result.builder()
+                .unhealthy()
+                .withNestedDetail("nested_detail_1", "nested_value_1")
+                .withNestedDetail("nested_detail_2", "nested_value_2")
+                .build();
+
+        assertThat(result.isHealthy())
+                .isFalse();
+
+        assertThat(result.getMessage())
+                .isNull();
+
+        assertThat(result.getError())
+                .isNull();
+
+        assertThat(result.getDetails())
+                .isEmpty();
+
+        assertThat(result.getNestedDetails())
+                .containsOnly(
+                        entry("nested_detail_1", "nested_value_1"),
+                        entry("nested_detail_2", "nested_value_2")
+                );
+    }
+
+    @Test
+    public void canHaveUnHealthyBuilderWithDetailsAndNestedDetailsAndError() {
+        final RuntimeException e = mock(RuntimeException.class);
+        when(e.getMessage()).thenReturn("oh noes");
+
+        final HealthCheck.Result result = HealthCheck.Result
+                .builder()
+                .unhealthy(e)
+                .withDetail("detail", "value")
+                .withNestedDetail("nested_detail_1", "nested_value_1")
+                .withNestedDetail("nested_detail_2", "nested_value_2")
+                .build();
+
+        assertThat(result.isHealthy())
+                .isFalse();
+
+        assertThat(result.getMessage())
+                .isEqualTo("oh noes");
+
+        assertThat(result.getError())
+                .isEqualTo(e);
+
+        assertThat(result.getDetails())
+                .containsOnly(entry("detail", "value"));
+
+        assertThat(result.getNestedDetails())
+                .containsOnly(
+                        entry("nested_detail_1", "nested_value_1"),
+                        entry("nested_detail_2", "nested_value_2")
+                );
+    }
+
+    @Test
+    public void canSpecifyCustomNestedDetailsName() {
+        final HealthCheck.Result result = HealthCheck.Result
+                .builder()
+                .healthy()
+                .withNestedDetailsName("extraDetails")
+                .withNestedDetail("nested_detail_1", "nested_value_1")
+                .withNestedDetail("nested_detail_2", "nested_value_2")
+                .build();
+
+        assertThat(result.getNestedDetailsName()).isEqualTo("extraDetails");
+
+        assertThat(result.getNestedDetails())
+                .containsOnly(
+                        entry("nested_detail_1", "nested_value_1"),
+                        entry("nested_detail_2", "nested_value_2")
+                );
     }
 
     @Test
@@ -255,12 +370,13 @@ public class HealthCheckTest {
         final HealthCheck.Result resultWithNullDetailValue = HealthCheck.Result.builder()
                 .unhealthy()
                 .withDetail("aNullDetail", null)
+                .withNestedDetail("aNullNestedDetail", null)
                 .usingClock(clock)
                 .build();
         assertThat(resultWithNullDetailValue.toString())
                 .contains(
                         "Result{isHealthy=false, duration=0, timestamp=" + DATE_TIME_FORMATTER.format(dateTime),
-                        ", aNullDetail=null}");
+                        ", aNullDetail=null, details.aNullNestedDetail=null}");
     }
 
     private static Clock clockWithFixedTime(ZonedDateTime dateTime) {

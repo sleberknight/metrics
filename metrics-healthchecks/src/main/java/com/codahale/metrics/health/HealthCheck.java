@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -24,6 +25,7 @@ public abstract class HealthCheck {
         private static final DateTimeFormatter DATE_FORMAT_PATTERN =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
         private static final int PRIME = 31;
+        private static final String DEFAULT_NESTED_DETAILS_NAME = "details";
 
         /**
          * Returns a healthy {@link Result} with no additional message.
@@ -106,23 +108,29 @@ public abstract class HealthCheck {
         private final String message;
         private final Throwable error;
         private final Map<String, Object> details;
+        private final String nestedDetailsName;
+        private final Map<String, Object> nestedDetails;
         private final long time;
 
         private long duration; // Calculated field
 
         private Result(boolean isHealthy, String message, Throwable error) {
-            this(isHealthy, message, error, null, Clock.defaultClock());
+            this(isHealthy, message, error, null, DEFAULT_NESTED_DETAILS_NAME, null, Clock.defaultClock());
         }
 
         private Result(ResultBuilder builder) {
-            this(builder.healthy, builder.message, builder.error, builder.details, builder.clock);
+            this(builder.healthy, builder.message, builder.error, builder.details,
+                    builder.nestedDetailsName, builder.nestedDetails, builder.clock);
         }
 
-        private Result(boolean isHealthy, String message, Throwable error, Map<String, Object> details, Clock clock) {
+        private Result(boolean isHealthy, String message, Throwable error, Map<String, Object> details,
+                       String nestedDetailsName, Map<String, Object> nestedDetails, Clock clock) {
             this.healthy = isHealthy;
             this.message = message;
             this.error = error;
             this.details = details == null ? null : Collections.unmodifiableMap(details);
+            this.nestedDetailsName = nestedDetailsName;
+            this.nestedDetails = nestedDetails == null ? null : Collections.unmodifiableMap(nestedDetails);
             this.time = clock.getTime();
         }
 
@@ -197,6 +205,14 @@ public abstract class HealthCheck {
             return details;
         }
 
+        public String getNestedDetailsName() {
+            return nestedDetailsName;
+        }
+
+        public Map<String, Object> getNestedDetails() {
+            return nestedDetails;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -207,8 +223,8 @@ public abstract class HealthCheck {
             }
             final Result result = (Result) o;
             return healthy == result.healthy &&
-                    !(error != null ? !error.equals(result.error) : result.error != null) &&
-                    !(message != null ? !message.equals(result.message) : result.message != null) &&
+                    Objects.equals(error, result.error) &&
+                    Objects.equals(message, result.message) &&
                     time == result.time;
         }
 
@@ -233,16 +249,24 @@ public abstract class HealthCheck {
             }
             builder.append(", duration=").append(duration);
             builder.append(", timestamp=").append(getTimestamp());
-            if (details != null) {
-                for (Map.Entry<String, Object> e : details.entrySet()) {
-                    builder.append(", ");
-                    builder.append(e.getKey())
-                            .append("=")
-                            .append(String.valueOf(e.getValue()));
-                }
-            }
+            appendDetails(builder, details, "");
+            appendDetails(builder, nestedDetails, nestedDetailsName + ".");
             builder.append('}');
             return builder.toString();
+        }
+
+        private static void appendDetails(StringBuilder builder, Map<String, Object> map, String detailPrefix) {
+            if (map == null || map.isEmpty()) {
+                return;
+            }
+
+            for (Map.Entry<String, Object> e : map.entrySet()) {
+                builder.append(", ");
+                builder.append(detailPrefix)
+                        .append(e.getKey())
+                        .append("=")
+                        .append(e.getValue());
+            }
         }
     }
 
@@ -255,11 +279,15 @@ public abstract class HealthCheck {
         private String message;
         private Throwable error;
         private Map<String, Object> details;
+        private String nestedDetailsName;
+        private Map<String, Object> nestedDetails;
         private Clock clock;
 
         protected ResultBuilder() {
             this.healthy = true;
             this.details = new LinkedHashMap<>();
+            this.nestedDetailsName = Result.DEFAULT_NESTED_DETAILS_NAME;
+            this.nestedDetails = new LinkedHashMap<>();
             this.clock = Clock.defaultClock();
         }
 
@@ -320,7 +348,7 @@ public abstract class HealthCheck {
         }
 
         /**
-         * Add an optional detail
+         * Add an optional top-level detail
          *
          * @param key  a key for this detail
          * @param data an object representing the detail data
@@ -331,6 +359,32 @@ public abstract class HealthCheck {
                 this.details = new LinkedHashMap<>();
             }
             this.details.put(key, data);
+            return this;
+        }
+
+        /**
+         * Specify the name given to the nested details map.
+         *
+         * @param name the nested details name
+         * @return this builder with the given nested details name
+         */
+        public ResultBuilder withNestedDetailsName(String name) {
+            this.nestedDetailsName = name;
+            return this;
+        }
+
+        /**
+         * Add an optional nested detail
+         *
+         * @param key  a key for this nested detail
+         * @param data an object representing the nested detail data
+         * @return this builder with the given nested detail added
+         */
+        public ResultBuilder withNestedDetail(String key, Object data) {
+            if (this.nestedDetails == null) {
+                this.nestedDetails = new LinkedHashMap<>();
+            }
+            this.nestedDetails.put(key, data);
             return this;
         }
 

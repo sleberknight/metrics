@@ -38,13 +38,24 @@ public class HealthCheckModule extends Module {
 
             Map<String, Object> details = result.getDetails();
             if (details != null && !details.isEmpty()) {
-                for (Map.Entry<String, Object> e : details.entrySet()) {
-                    json.writeObjectField(e.getKey(), e.getValue());
-                }
+                writeEntries(json, details);
+            }
+
+            Map<String, Object> nestedDetails = result.getNestedDetails();
+            if (nestedDetails != null && !nestedDetails.isEmpty()) {
+                json.writeObjectFieldStart(result.getNestedDetailsName());
+                writeEntries(json, nestedDetails);
+                json.writeEndObject();
             }
 
             json.writeStringField("timestamp", result.getTimestamp());
             json.writeEndObject();
+        }
+
+        private static void writeEntries(JsonGenerator json, Map<String, Object> map) throws IOException {
+            for (Map.Entry<String, Object> e : map.entrySet()) {
+                json.writeObjectField(e.getKey(), e.getValue());
+            }
         }
 
         private void serializeThrowable(JsonGenerator json, Throwable error, String name) throws IOException {
